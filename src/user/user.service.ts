@@ -6,6 +6,8 @@ import { Repository } from "typeorm";
 import { sign } from "jsonwebtoken";
 import { JWT_SECRET } from "@app/config";
 import { UserResponseInterface } from "./types/userResponse.interface";
+import { LoginUserDto } from "@app/dto/loginUser.dto";
+import { compare } from "bcrypt";
 
 @Injectable()
 export class UserService {
@@ -14,12 +16,29 @@ export class UserService {
         private readonly userRepository: Repository<UserEntity>,
     ) {}
     
-    async createUser(createUserDto: CreateUserDto): Promise<UserEntity> {
+    async loginUser( loginUserDto: LoginUserDto ) : Promise<UserEntity> {
+        const user = await this.userRepository.findOne({
+            where: { email: loginUserDto.email },
+            select: ['id', 'username', 'email', 'bio', 'image', 'password']
+        })
+        if (!user) {
+            throw new HttpException('User not found', HttpStatus.UNPROCESSABLE_ENTITY)
+        }
+
+        const isPasswordCorrect = await compare(loginUserDto.password, user.password )  // from bcrypt-compares hashed PWD in DB with PWD as string
+        if (!isPasswordCorrect) {
+            throw new HttpException('Password incorrect', HttpStatus.UNPROCESSABLE_ENTITY)
+        }
+        delete user.password;
+        return user;
+    }
+    
+    async createUser( createUserDto: CreateUserDto ) : Promise<UserEntity> {
         const userByEmail = await this.userRepository.findOne({
-            where: { email: createUserDto.email}
+            where: { email: createUserDto.email }
         })
         const userByUsername = await this.userRepository.findOne({
-            where: { email: createUserDto.username}
+            where: { email: createUserDto.username }
         })
         if (userByEmail || userByUsername) {
             throw new HttpException('Email or username are taken', HttpStatus.UNPROCESSABLE_ENTITY)
